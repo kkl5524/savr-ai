@@ -1,4 +1,3 @@
-
 function renderIngredients() {
   const list = document.getElementById('ingredients-list');
   list.innerHTML = ingredients
@@ -12,12 +11,16 @@ function renderIngredients() {
 
 function addIngredient() {
   const input = document.getElementById('ingredient-input');
-  const val = input.value.trim();
-  if (val && !ingredients.includes(val)) {
-    ingredients.push(val);
-    renderIngredients();
-    input.value = '';
-  }
+  const raw = input.value.trim();
+  if (!raw) return input.focus();
+
+  raw.split(',')
+    .map(s => s.trim())
+    .filter(s => s.length && !ingredients.includes(s))
+    .forEach(s => ingredients.push(s));
+
+  renderIngredients();
+  input.value = '';
   input.focus();
 }
 
@@ -31,7 +34,6 @@ function initIngredients() {
     if (e.key === 'Enter') addIngredient();
   });
 
-  // Seed demo ingredients if storage is empty
   if (ingredients.length === 0) {
     ingredients = ['Eggs', 'Broccoli', 'Garlic', 'Tomatoes', 'Olive Oil'];
   }
