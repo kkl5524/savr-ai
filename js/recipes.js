@@ -1,20 +1,7 @@
-function generateRecipes() {
-  const btn = document.getElementById('generate-btn');
-  btn.classList.add('loading');
-  btn.disabled = true;
-
-  setTimeout(() => {
-    btn.classList.remove('loading');
-    btn.disabled = false;
-
-    currentRecipes = [...SAMPLE_RECIPES].sort(() => Math.random() - 0.5);
-    renderRecipes();
-
-    const results = document.getElementById('results-section');
-    results.classList.add('visible');
-    results.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }, 1800);
-}
+// ──────────────────────────────────────────────
+// RECIPES — render, pin, modal
+// (generateRecipes lives in search.js)
+// ──────────────────────────────────────────────
 
 function renderRecipes() {
   const grid = document.getElementById('recipes-grid');
@@ -68,7 +55,11 @@ function togglePin(id, btn) {
 function renderPinned() {
   const grid = document.getElementById('pinned-grid');
   const empty = document.getElementById('pinned-empty');
-  const pinnedRecipes = SAMPLE_RECIPES.filter((r) => pinned.includes(r.id));
+
+  // Look up each pinned id across currentRecipes first, then static samples
+  const pinnedRecipes = pinned
+    .map(id => currentRecipes.find(r => r.id === id) || SAMPLE_RECIPES.find(r => r.id === id))
+    .filter(Boolean);
 
   if (!pinnedRecipes.length) {
     empty.style.display = 'flex';
@@ -112,68 +103,67 @@ function updatePinBadge() {
   }
 }
 
-// ── Modal
+// ── Modal ──────────────────────────────────────
 
 let nutritionChartInstance = null;
 
+// Look up a recipe by id across both the live search results and the static samples
+function findRecipe(id) {
+  return currentRecipes.find(r => r.id === id)
+      || SAMPLE_RECIPES.find(r => r.id === id)
+      || null;
+}
+
 function openModal(id) {
-  const r = SAMPLE_RECIPES.find((x) => x.id === id);
+  const r = findRecipe(id);
   if (!r) return;
   currentModalId = id;
 
+  // Header
   document.getElementById('modal-icon').textContent = r.icon;
   document.getElementById('modal-title').textContent = r.name;
   document.getElementById('modal-meta').innerHTML = `
-    <span>⏱ ${r.time}</span>
-    <span>🔥 ${r.cal} kcal</span>
+    <span>⏱ ${r.time && r.time !== '–' ? r.time : 'varies'}</span>
+    ${r.cal ? `<span>🔥 ${r.cal} kcal</span>` : ''}
     <span>${pinned.includes(id) ? '📌 Pinned' : '🔖 Not pinned'}</span>
+    ${r.link ? `<a href="${r.link}" target="_blank" rel="noopener" style="font-size:0.78rem;color:var(--moss);">View original ↗</a>` : ''}
   `;
 
-  const n = r.nutrition;
-  document.getElementById('modal-calories').textContent = r.cal;
-  document.getElementById('modal-fiber').textContent = n.fiber;
-  // ~28g fiber is 100% DV
-  const fiberDV = Math.round((n.fiber / 28) * 100);
-  document.getElementById('modal-fiber-dv').textContent = `(${fiberDV}% DV)`;
+  // Show modal immediately with loading state in nutrition panel
+  renderNutritionLoading();
+  document.getElementById('modal-backdrop').classList.add('open');
 
-  document.getElementById('nutrition-legend').innerHTML = `
-    <div class="legend-item"><span class="legend-dot" style="background:#5A7D5B"></span> Protein <strong>${n.protein}g</strong></div>
-    <div class="legend-item"><span class="legend-dot" style="background:#D4A843"></span> Carbs <strong>${n.carbs}g</strong></div>
-    <div class="legend-item"><span class="legend-dot" style="background:#C4633A"></span> Fat <strong>${n.fat}g</strong></div>
-  `;
+  // Fetch live nutrition from FDC, fall back to static data or show N/A
+  fetchRecipeNutrition(r)
+    .then(live => {
+      // Treat all-zero result as a failed fetch (proxy misconfigured or key missing)
+      const isAllZero = live && live.calories === 0 && live.protein === 0 && live.carbs === 0 && live.fat === 0;
+      if (isAllZero) return renderNutritionPanel(r.nutrition, false);
+      renderNutritionPanel(live || r.nutrition, !!live && !isAllZero);
+    })
+    .catch(() => renderNutritionPanel(r.nutrition, false));
 
-  if (nutritionChartInstance) {
-    nutritionChartInstance.destroy();
-    nutritionChartInstance = null;
+  // Ingredients + steps — handle JS arrays, Python-literal strings, and plain strings
+  function parseListField(val) {
+    if (Array.isArray(val)) return val.filter(Boolean);
+    if (typeof val !== 'string' || !val.trim()) return [];
+    // Python-literal list: "['step one', 'step two']"
+    if (val.trim().startsWith('[')) {
+      try {
+        // Replace single quotes with double quotes carefully
+        const jsonLike = val
+          .replace(/^\[/, '[')
+          .replace(/'/g, '"')
+          .replace(/,\s*]/, ']');
+        const parsed = JSON.parse(jsonLike);
+        if (Array.isArray(parsed)) return parsed.filter(Boolean);
+      } catch (_) { /* fall through to split */ }
+    }
+    // Plain string — split on ". "
+    return val.split(/\.\s+/).filter(Boolean);
   }
-  const ctx = document.getElementById('nutritionChart').getContext('2d');
-  nutritionChartInstance = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: ['Protein', 'Carbs', 'Fat'],
-      datasets: [{
-        data: [n.protein, n.carbs, n.fat],
-        backgroundColor: ['#5A7D5B', '#D4A843', '#C4633A'],
-        borderWidth: 0,
-        hoverOffset: 6,
-      }],
-    },
-    options: {
-      cutout: '62%',
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => ` ${ctx.label}: ${ctx.parsed}g`,
-          },
-        },
-      },
-    },
-  });
 
-  const steps = Array.isArray(r.instructions)
-    ? r.instructions
-    : r.instructions.split('. ').filter(Boolean);
+  const steps = parseListField(r.instructions);
 
   const STOP_WORDS = new Set([
     'cup','cups','tbsp','tsp','g','kg','ml','oz','lb','clove','cloves',
@@ -196,16 +186,13 @@ function openModal(id) {
   }
 
   function renderSteps(candidates = null) {
-    const stepEls = document.querySelectorAll('#modal-steps li');
-    stepEls.forEach((li, i) => {
+    document.querySelectorAll('#modal-steps li').forEach((li, i) => {
       let text = steps[i];
       if (candidates && candidates.length) {
-        const stepLower = text.toLowerCase();
-        const isMatch = candidates.some(w => stepLower.includes(w));
+        const isMatch = candidates.some(w => text.toLowerCase().includes(w));
         if (isMatch) {
           candidates.forEach(w => {
-            const regex = new RegExp(`\\b(${w}\\w*)`, 'gi');
-            text = text.replace(regex, '<mark class="step-highlight">$1</mark>');
+            text = text.replace(new RegExp(`\\b(${w}\\w*)`, 'gi'), '<mark class="step-highlight">$1</mark>');
           });
         }
         li.innerHTML = text;
@@ -217,32 +204,89 @@ function openModal(id) {
     });
   }
 
-  document.getElementById('modal-steps').innerHTML = steps
-    .map((s) => `<li>${s}</li>`)
-    .join('');
+  document.getElementById('modal-steps').innerHTML = steps.map(s => `<li>${s}</li>`).join('');
 
   const ingredientUL = document.getElementById('modal-ingredients');
-  ingredientUL.innerHTML = r.ingredients
-    .map((ing) => `<li>${ing}</li>`)
-    .join('');
-
-  ingredientUL.querySelectorAll('li').forEach((li) => {
+  ingredientUL.innerHTML = (r.ingredients || []).map(ing => `<li>${ing}</li>`).join('');
+  ingredientUL.querySelectorAll('li').forEach(li => {
     const candidates = extractCandidates(li.textContent);
-    li.addEventListener('mouseenter', () => {
-      li.classList.add('ing-hover');
-      renderSteps(candidates);
-    });
-    li.addEventListener('mouseleave', () => {
-      li.classList.remove('ing-hover');
-      renderSteps(null);
-    });
+    li.addEventListener('mouseenter', () => { li.classList.add('ing-hover'); renderSteps(candidates); });
+    li.addEventListener('mouseleave', () => { li.classList.remove('ing-hover'); renderSteps(null); });
   });
 
   document.getElementById('modal-pin-btn').textContent = pinned.includes(id)
-    ? '📌 Pinned'
-    : '🔖 Pin Recipe';
+    ? '📌 Pinned' : '🔖 Pin Recipe';
 
-  document.getElementById('modal-backdrop').classList.add('open');
+  // Forum — load tips for this recipe
+  if (typeof initForumInModal === 'function') {
+    initForumInModal(id, r.name, r.ingredients || []);
+  }
+}
+
+function renderNutritionLoading() {
+  // Destroy old chart
+  if (nutritionChartInstance) { nutritionChartInstance.destroy(); nutritionChartInstance = null; }
+
+  document.getElementById('modal-calories').textContent = '–';
+  document.getElementById('modal-fiber').textContent = '–';
+  document.getElementById('modal-fiber-dv').textContent = '';
+  document.getElementById('nutrition-legend').innerHTML = `
+    <div class="legend-item nutrition-loading">Fetching live data…</div>
+  `;
+}
+
+function renderNutritionPanel(n, isLive) {
+  // n may be null for dataset recipes before FDC responds
+  if (!n) {
+    document.getElementById('modal-calories').textContent = '–';
+    document.getElementById('modal-fiber').textContent = '–';
+    document.getElementById('modal-fiber-dv').textContent = '';
+    document.getElementById('nutrition-legend').innerHTML =
+      '<div class="legend-item nutrition-loading">Nutrition unavailable</div>';
+    return;
+  }
+
+  const cal = n.calories ?? n.cal ?? '–';
+  document.getElementById('modal-calories').textContent = cal;
+  document.getElementById('modal-fiber').textContent = n.fiber ?? '–';
+  const fiberDV = n.fiber ? Math.round((n.fiber / 28) * 100) : 0;
+  document.getElementById('modal-fiber-dv').textContent = n.fiber ? `(${fiberDV}% DV)` : '';
+
+  document.getElementById('nutrition-legend').innerHTML = `
+    <div class="legend-item"><span class="legend-dot" style="background:#5A7D5B"></span> Protein <strong>${n.protein ?? '–'}g</strong></div>
+    <div class="legend-item"><span class="legend-dot" style="background:#D4A843"></span> Carbs <strong>${n.carbs ?? '–'}g</strong></div>
+    <div class="legend-item"><span class="legend-dot" style="background:#C4633A"></span> Fat <strong>${n.fat ?? '–'}g</strong></div>
+    ${isLive
+      ? '<div class="legend-source">Source: USDA FoodData Central</div>'
+      : '<div class="legend-source legend-source--fallback">Estimated values</div>'}
+  `;
+
+  if (nutritionChartInstance) { nutritionChartInstance.destroy(); nutritionChartInstance = null; }
+
+  // Only draw chart if all three macros are present and non-zero
+  const { protein, carbs, fat } = n;
+  if (protein != null && carbs != null && fat != null && (protein + carbs + fat) > 0) {
+    const ctx = document.getElementById('nutritionChart').getContext('2d');
+    nutritionChartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Protein', 'Carbs', 'Fat'],
+        datasets: [{
+          data: [protein, carbs, fat],
+          backgroundColor: ['#5A7D5B', '#D4A843', '#C4633A'],
+          borderWidth: 0,
+          hoverOffset: 6,
+        }],
+      },
+      options: {
+        cutout: '62%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.parsed}g` } },
+        },
+      },
+    });
+  }
 }
 
 function closeModal(e) {

@@ -4,4 +4,5 @@ document.addEventListener('DOMContentLoaded', () => {
   renderMealPlanPlaceholder();
   renderPinned();
   updatePinBadge();
+  if (typeof loadRecentForum === 'function') loadRecentForum();
 });

@@ -6,6 +6,7 @@
   <title>Savr.ai — Cook Smarter</title>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
@@ -16,10 +17,12 @@
     <li><a href="#tool">Generate</a></li>
     <li><a href="#pinned">📌 Pinned <span class="pin-badge" id="nav-pin-badge" style="display:none"></span></a></li>
     <li><a href="#meal-plan">Meal Plan</a></li>
+    <li><a href="#forum">Community</a></li>
     <li><a href="#chat">AI Chef</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#tool" class="nav-cta">Get Started</a></li>
   </ul>
+  <div id="nav-auth-area"></div>
 </nav>
 
 <!-- HERO -->
@@ -169,9 +172,14 @@
   <div class="results-section" id="results-section">
     <div class="results-header">
       <h3>Your Recipes</h3>
-      <span class="results-count" id="results-count">6 recipes found</span>
+      <span class="results-count" id="results-count"></span>
     </div>
     <div class="recipes-grid" id="recipes-grid"></div>
+    <div id="load-more-container" style="display:none;text-align:center;margin-top:1.5rem;">
+      <button id="load-more-btn" class="btn-secondary" onclick="loadMoreRecipes()">
+        Show more recipes
+      </button>
+    </div>
   </div>
 </section>
 
@@ -258,6 +266,16 @@
   </div>
 </section>
 
+<!-- FORUM -->
+<section class="forum-section" id="forum">
+  <div class="forum-section-inner">
+    <div class="section-label">Community</div>
+    <h2>Cooking tips from the community</h2>
+    <p class="section-sub">Real tips, substitutions, and variations shared by home cooks. Open a recipe to add your own.</p>
+    <div id="forum-feed"></div>
+  </div>
+</section>
+
 <!-- FEATURES -->
 <section class="features-section" id="features">
   <div class="features-inner">
@@ -338,6 +356,9 @@
       <button class="btn-primary" onclick="closeModalBtn()">← Back</button>
       <button class="btn-secondary" id="modal-pin-btn" onclick="pinFromModal()">📌 Pin Recipe</button>
     </div>
+
+    <!-- FORUM (tips per recipe) -->
+    <div id="modal-forum-container"></div>
   </div>
 </div>
 
@@ -355,16 +376,30 @@
   </div>
 </div>
 
+<!-- AUTH MODAL -->
+<div class="modal-backdrop" id="auth-backdrop" onclick="if(event.target===this)closeAuthModal()">
+  <div class="modal auth-modal">
+    <button class="modal-close" onclick="closeAuthModal()">✕</button>
+    <div class="modal-icon">🌿</div>
+    <h3>Welcome to Savr.ai</h3>
+    <div id="auth-modal-body"></div>
+  </div>
+</div>
+
 <!-- SCRIPTS -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="js/data.js"></script>
 <script src="js/state.js"></script>
 <script src="js/ingredients.js"></script>
 <script src="js/filters.js"></script>
+<script src="js/nutrition.js"></script>
+<script src="js/search.js"></script>
 <script src="js/recipes.js"></script>
 <script src="js/mealplan.js"></script>
 <script src="js/chat.js"></script>
 <script src="js/grocery.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/forum.js"></script>
 <script src="js/app.js"></script>
 
 </body>

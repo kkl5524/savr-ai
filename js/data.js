@@ -1,7 +1,3 @@
-// ──────────────────────────────────────────────
-// DATA — recipes, meal plan template, AI responses
-// ──────────────────────────────────────────────
-
 const SAMPLE_RECIPES = [
   {
     id: 1,

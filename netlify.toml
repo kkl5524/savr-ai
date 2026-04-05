@@ -1,0 +1,25 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# Rewrite /api/nutrition/* → the serverless function
+# This keeps the URL clean and hides the implementation detail from the browser
+[[redirects]]
+  from = "/api/nutrition/*"
+  to   = "/.netlify/functions/nutrition/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/search"
+  to   = "/.netlify/functions/search"
+  status = 200
+
+[[redirects]]
+  from = "/api/forum/recent"
+  to   = "/.netlify/functions/forum/recent"
+  status = 200
+
+[[redirects]]
+  from = "/api/forum"
+  to   = "/.netlify/functions/forum"
+  status = 200
