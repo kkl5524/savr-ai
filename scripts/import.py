@@ -15,7 +15,7 @@ load_dotenv()  # Load environment variables from .env file if present
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]
 
-BATCH_SIZE= 500
+BATCH_SIZE= 100
 TABLE= "recipes"
 
 def parse_ner(raw):
