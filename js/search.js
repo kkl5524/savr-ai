@@ -47,16 +47,14 @@ function coverageScore(recipeNer, userNerSet) {
   return matched / recipeNer.length;
 }
 
-// ── Re-rank results client-side by missing ingredient count ───────────────
-// Primary:   fewest missing ingredients first (absolute count, not ratio)
-// Secondary: most matched ingredients (recipe uses more of what you have)
+// ── Re-rank results client-side ────────────────────────────────────────────
+// Delegates to applyFilters in filters.js which handles:
+//   - allergy hard removal
+//   - vegan/vegetarian hard removal
+//   - appliance + cuisine boost scoring
+//   - coverage (fewest missing ingredients) as primary sort
 function rerankByCoverage(rows, userNerSet) {
-  return [...rows].sort((a, b) => {
-    const missingA = (a.ner || []).filter(n => !userNerSet.has(n)).length;
-    const missingB = (b.ner || []).filter(n => !userNerSet.has(n)).length;
-    if (missingA !== missingB) return missingA - missingB;
-    return (b.match_score || 0) - (a.match_score || 0);
-  });
+  return applyFilters(rows, userNerSet);
 }
 
 function getActiveFilters() {
