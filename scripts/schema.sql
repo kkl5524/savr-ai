@@ -42,33 +42,29 @@ returns table (
   tags        text[],
   source      text,
   link        text,
-  match_score int
+  match_score bigint
 )
 language sql stable as $$
+  with candidates as (
+    select r.*
+    from recipes r
+    where r.ner && p_ner
+      and (cardinality(p_tags) = 0 or r.tags @> p_tags)
+      and (p_title_query = '' or to_tsvector('english', r.title) @@ plainto_tsquery('english', p_title_query))
+    limit 500
+  )
   select
-    r.id,
-    r.title,
-    r.ingredients,
-    r.directions,
-    r.ner,
-    r.tags,
-    r.source,
-    r.link,
-    (
-      select count(*)
-      from unnest(r.ner) as x
-      where x = any(p_ner)
-    ) as match_score
-  from recipes r
-  where
-    (
-      select count(*)
-      from unnest(r.ner) as x
-      where x = any(p_ner)
-    ) >= p_match_count
-    and (cardinality(p_tags) = 0 or r.tags @> p_tags)
-    and (p_title_query = '' or to_tsvector('english', r.title) @@ plainto_tsquery('english', p_title_query))
-  order by match_score desc, r.id asc
+    c.id,
+    c.title,
+    c.ingredients,
+    c.directions,
+    c.ner,
+    c.tags,
+    c.source,
+    c.link,
+    (select count(*) from unnest(c.ner) n where n = any(p_ner)) as match_score
+  from candidates c
+  order by match_score desc
   limit  p_limit
   offset p_offset;
 $$;

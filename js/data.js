@@ -1,3 +1,7 @@
+// ──────────────────────────────────────────────
+// DATA — recipes, meal plan template, AI responses
+// ──────────────────────────────────────────────
+
 const SAMPLE_RECIPES = [
   {
     id: 1,
@@ -228,15 +232,8 @@ const SAMPLE_RECIPES = [
   },
 ];
 
-const MEAL_PLAN_TEMPLATE = [
-  { day: 'Mon', icon: '🥗', meal: 'Frittata' },
-  { day: 'Tue', icon: '🍲', meal: 'Tomato Soup' },
-  { day: 'Wed', icon: '🍜', meal: 'Stir-Fry' },
-  { day: 'Thu', icon: '🥚', meal: 'Shakshuka' },
-  { day: 'Fri', icon: '🥙', meal: 'Flatbread' },
-  { day: 'Sat', icon: '🫕', meal: 'Curry' },
-  { day: 'Sun', icon: '🥗', meal: 'Salad Bowl' },
-];
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const MEAL_SLOTS = ['breakfast', 'lunch', 'dinner'];
 
 const AI_RESPONSES = [
   "Great question! You can reduce sodium by using low-sodium soy sauce or replacing it entirely with coconut aminos. Fresh herbs and lemon juice can also add brightness without extra salt. 🌿",

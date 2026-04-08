@@ -1,12 +1,16 @@
+// ──────────────────────────────────────────────
+// SEARCH — queries the recipe dataset via Netlify function → Supabase
+// ──────────────────────────────────────────────
+
 const SEARCH_PAGE_SIZE = 3;
 const SEARCH_LOAD_MORE = 6;
 
 const searchState = {
   lastIngredients: [],
-  lastTags: [],
-  lastTitleQuery: '',
-  offset: 0,
-  exhausted: false,
+  lastTags:        [],
+  lastTitleQuery:  '',
+  offset:          0,
+  exhausted:       false,
 };
 
 const STOP_WORDS_SEARCH = new Set([
@@ -19,7 +23,9 @@ const STOP_WORDS_SEARCH = new Set([
   'taste','needed','optional','divided','packed','heaping','level',
 ]);
 
-function ingredientToNer(str) {
+// Works with both legacy strings and new { name, qty, unit } objects
+function ingredientToNer(ing) {
+  const str = typeof ing === 'string' ? ing : (ing.name || '');
   return str
     .toLowerCase()
     .replace(/[\d¼½¾⅓⅔–\-]+/g, ' ')
@@ -31,15 +37,37 @@ function ingredientToNer(str) {
     .trim();
 }
 
+// ── Coverage scoring ───────────────────────────────────────────────────────
+// Returns a score 0–1 representing how well a recipe's NER matches
+// the user's ingredients with no extra ingredients needed.
+// Perfect score = every recipe ingredient is covered by user ingredients.
+function coverageScore(recipeNer, userNerSet) {
+  if (!recipeNer || recipeNer.length === 0) return 0;
+  const matched = recipeNer.filter(n => userNerSet.has(n)).length;
+  return matched / recipeNer.length;
+}
+
+// ── Re-rank results client-side by missing ingredient count ───────────────
+// Primary:   fewest missing ingredients first (absolute count, not ratio)
+// Secondary: most matched ingredients (recipe uses more of what you have)
+function rerankByCoverage(rows, userNerSet) {
+  return [...rows].sort((a, b) => {
+    const missingA = (a.ner || []).filter(n => !userNerSet.has(n)).length;
+    const missingB = (b.ner || []).filter(n => !userNerSet.has(n)).length;
+    if (missingA !== missingB) return missingA - missingB;
+    return (b.match_score || 0) - (a.match_score || 0);
+  });
+}
+
 function getActiveFilters() {
   const tags = [];
   document.querySelectorAll('.chip.active').forEach(chip => {
     const text = chip.textContent.trim();
     const map = {
-      '🌱 Vegan': 'Vegan',
-      '🥗 Vegetarian': 'Vegetarian',
-      '🥩 Keto': 'Keto',
-      '🔥 Low-Calorie': 'Low-Cal',
+      '🌱 Vegan':        'Vegan',
+      '🥗 Vegetarian':   'Vegetarian',
+      '🥩 Keto':         'Keto',
+      '🔥 Low-Calorie':  'Low-Cal',
       '🥩 High Protein': 'High Protein',
     };
     if (map[text]) tags.push(map[text]);
@@ -47,38 +75,42 @@ function getActiveFilters() {
   return tags;
 }
 
-function mapRow(row) {
+function mapRow(row, userNerSet) {
+  const cov = coverageScore(row.ner || [], userNerSet);
   return {
-    id: row.id,
-    icon: pickIcon(row.ner || []),
-    name: row.title,
-    time: '–',
-    cal: null,
-    tags: row.tags || [],
-    ingredients: row.ingredients || [],
-    instructions: row.directions || [],
-    nutrition: null,
-    matchScore: row.match_score,
-    source: row.source || null,
-    link: row.link || null,
+    id:            row.id,
+    icon:          pickIcon(row.ner || []),
+    name:          row.title,
+    time:          '–',
+    cal:           null,
+    tags:          row.tags || [],
+    ingredients:   row.ingredients || [],
+    instructions:  row.directions  || [],
+    nutrition:     null,
+    matchScore:    row.match_score,
+    coverageScore: cov,
+    missingCount:  Math.round((1 - cov) * (row.ner || []).length),
+    ner:           row.ner || [],
+    source:        row.source || null,
+    link:          row.link   || null,
   };
 }
 
 function pickIcon(ner) {
   const s = ner.join(' ');
   if (/pasta|noodle|spaghetti|fettuccine|penne/.test(s)) return '🍝';
-  if (/chicken|turkey|duck/.test(s)) return '🍗';
-  if (/beef|steak|burger|mince/.test(s)) return '🥩';
-  if (/salmon|tuna|shrimp|fish|seafood/.test(s)) return '🐟';
-  if (/egg/.test(s)) return '🥚';
-  if (/tomato|pepper|onion|garlic/.test(s)) return '🍅';
-  if (/chocolate|cocoa|cake|cookie|brownie/.test(s)) return '🍫';
-  if (/bread|flour|yeast/.test(s)) return '🍞';
-  if (/rice|grain|quinoa/.test(s)) return '🍚';
-  if (/soup|broth|stock/.test(s)) return '🍲';
-  if (/salad|lettuce|spinach|arugula/.test(s)) return '🥗';
-  if (/curry|cumin|turmeric|garam/.test(s)) return '🫕';
-  if (/lemon|lime|orange/.test(s)) return '🍋';
+  if (/chicken|turkey|duck/.test(s))                      return '🍗';
+  if (/beef|steak|burger|mince/.test(s))                  return '🥩';
+  if (/salmon|tuna|shrimp|fish|seafood/.test(s))          return '🐟';
+  if (/egg/.test(s))                                      return '🥚';
+  if (/tomato|pepper|onion|garlic/.test(s))               return '🍅';
+  if (/chocolate|cocoa|cake|cookie|brownie/.test(s))      return '🍫';
+  if (/bread|flour|yeast/.test(s))                        return '🍞';
+  if (/rice|grain|quinoa/.test(s))                        return '🍚';
+  if (/soup|broth|stock/.test(s))                         return '🍲';
+  if (/salad|lettuce|spinach|arugula/.test(s))            return '🥗';
+  if (/curry|cumin|turmeric|garam/.test(s))               return '🫕';
+  if (/lemon|lime|orange/.test(s))                        return '🍋';
   return '🍽️';
 }
 
@@ -87,9 +119,10 @@ async function generateRecipes() {
   btn.classList.add('loading');
   btn.disabled = true;
 
-  const nerTerms = ingredients
-    .map(ingredientToNer)
-    .filter(Boolean);
+  console.log('[search] ingredients state:', ingredients);
+  const nerTerms = ingredients.map(ingredientToNer).filter(Boolean);
+  console.log('[search] nerTerms:', nerTerms);
+  const userNerSet = new Set(nerTerms);
 
   if (!nerTerms.length) {
     btn.classList.remove('loading');
@@ -98,28 +131,32 @@ async function generateRecipes() {
     return;
   }
 
-  const tags = getActiveFilters();
+  const tags       = getActiveFilters();
   const titleQuery = '';
 
   searchState.lastIngredients = nerTerms;
-  searchState.lastTags = tags;
-  searchState.lastTitleQuery = titleQuery;
-  searchState.offset = 0;
-  searchState.exhausted = false;
+  searchState.lastTags        = tags;
+  searchState.lastTitleQuery  = titleQuery;
+  searchState.lastUserNerSet  = userNerSet;
+  searchState.offset          = 0;
+  searchState.exhausted       = false;
 
   try {
     const { recipes: rows, offset } = await callSearch({
       ingredients: nerTerms,
       tags,
       titleQuery,
-      limit:  SEARCH_PAGE_SIZE,
+      limit:  SEARCH_PAGE_SIZE * 3,  // fetch more so re-ranking has material to work with
       offset: 0,
     });
 
-    searchState.offset = offset;
+    searchState.offset    = offset;
     searchState.exhausted = rows.length < SEARCH_PAGE_SIZE;
 
-    currentRecipes = rows.map(mapRow);
+    const reranked   = rerankByCoverage(rows, userNerSet);
+    currentRecipes   = reranked.slice(0, SEARCH_PAGE_SIZE).map(r => mapRow(r, userNerSet));
+    searchState._buffer = reranked.slice(SEARCH_PAGE_SIZE).map(r => mapRow(r, userNerSet));
+
     renderRecipes();
     updateLoadMoreButton();
 
@@ -142,20 +179,32 @@ async function loadMoreRecipes() {
   const btn = document.getElementById('load-more-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
 
+  const userNerSet = searchState.lastUserNerSet || new Set();
+
   try {
-    const { recipes: rows, offset } = await callSearch({
-      ingredients: searchState.lastIngredients,
-      tags: searchState.lastTags,
-      titleQuery: searchState.lastTitleQuery,
-      limit: SEARCH_LOAD_MORE,
-      offset: searchState.offset,
-    });
+    // Use buffered results first
+    if (searchState._buffer && searchState._buffer.length) {
+      const next = searchState._buffer.splice(0, SEARCH_LOAD_MORE);
+      currentRecipes = [...currentRecipes, ...next];
+      searchState.exhausted = searchState._buffer.length === 0 && searchState.exhausted;
+    } else {
+      const { recipes: rows, offset } = await callSearch({
+        ingredients: searchState.lastIngredients,
+        tags:        searchState.lastTags,
+        titleQuery:  searchState.lastTitleQuery,
+        limit:       SEARCH_LOAD_MORE * 3,
+        offset:      searchState.offset,
+      });
 
-    searchState.offset = offset;
-    searchState.exhausted = rows.length < SEARCH_LOAD_MORE;
+      searchState.offset    = offset;
+      searchState.exhausted = rows.length < SEARCH_LOAD_MORE;
 
-    const newRecipes = rows.map(mapRow);
-    currentRecipes = [...currentRecipes, ...newRecipes];
+      const reranked = rerankByCoverage(rows, userNerSet);
+      const next     = reranked.slice(0, SEARCH_LOAD_MORE).map(r => mapRow(r, userNerSet));
+      searchState._buffer = reranked.slice(SEARCH_LOAD_MORE).map(r => mapRow(r, userNerSet));
+      currentRecipes = [...currentRecipes, ...next];
+    }
+
     renderRecipes();
     updateLoadMoreButton();
 
@@ -169,10 +218,10 @@ async function loadMoreRecipes() {
 function updateLoadMoreButton() {
   const container = document.getElementById('load-more-container');
   if (!container) return;
-  container.style.display = searchState.exhausted ? 'none' : 'block';
+  container.style.display = searchState.exhausted && (!searchState._buffer?.length) ? 'none' : 'block';
   const count = document.getElementById('results-count');
   if (count) {
-    count.textContent = searchState.exhausted
+    count.textContent = searchState.exhausted && !searchState._buffer?.length
       ? `${currentRecipes.length} recipes found`
       : `${currentRecipes.length} recipes — scroll for more`;
   }
@@ -180,9 +229,9 @@ function updateLoadMoreButton() {
 
 async function callSearch(params) {
   const res = await fetch('/api/search', {
-    method: 'POST',
+    method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
+    body:    JSON.stringify(params),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));

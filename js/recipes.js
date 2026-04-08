@@ -7,35 +7,41 @@ function renderRecipes() {
   const grid = document.getElementById('recipes-grid');
   document.getElementById('results-count').textContent = `${currentRecipes.length} recipes found`;
 
-  grid.innerHTML = currentRecipes
-    .map((r) => {
-      const isPinned = pinned.includes(r.id);
-      return `
-        <div class="recipe-card" onclick="openModal(${r.id})">
-          <div class="recipe-card-img">
-            ${r.icon}
-            <button
-              class="recipe-card-pin ${isPinned ? 'pinned' : ''}"
-              onclick="event.stopPropagation(); togglePin(${r.id}, this)"
-              title="Pin recipe"
-            >
-              ${isPinned ? '📌' : '🔖'}
-            </button>
-          </div>
-          <div class="recipe-card-body">
-            <h4>${r.name}</h4>
-            <div class="recipe-card-meta">
-              <span>⏱ ${r.time}</span>
-              <span>🔥 ${r.cal} kcal</span>
-            </div>
-            <div class="recipe-card-tags">
-              ${r.tags.map((t) => `<span class="recipe-tag">${t}</span>`).join('')}
-            </div>
-          </div>
+  grid.innerHTML = currentRecipes.map((r) => {
+    const isPinned  = pinned.includes(r.id);
+    const covPct    = r.coverageScore != null ? Math.round(r.coverageScore * 100) : null;
+    const covBadge  = covPct != null
+      ? `<span class="recipe-coverage ${covPct === 100 ? 'recipe-coverage--perfect' : ''}" title="${r.missingCount || 0} ingredient(s) needed">
+           ${covPct === 100 ? '✓ All in' : `${covPct}% match`}
+         </span>`
+      : '';
+
+    return `
+      <div class="recipe-card" onclick="openModal(${r.id})">
+        <div class="recipe-card-img">
+          ${r.icon}
+          <button
+            class="recipe-card-pin ${isPinned ? 'pinned' : ''}"
+            onclick="event.stopPropagation(); togglePin(${r.id}, this)"
+            title="Pin recipe"
+          >${isPinned ? '📌' : '🔖'}</button>
+          ${covBadge}
         </div>
-      `;
-    })
-    .join('');
+        <div class="recipe-card-body">
+          <h4>${r.name}</h4>
+          <div class="recipe-card-meta">
+            ${r.missingCount ? `<span class="missing-count">🛒 ${r.missingCount} needed</span>` : `<span style="color:var(--moss);font-size:0.78rem;">✓ All ingredients in</span>`}
+          </div>
+          <div class="recipe-card-tags">
+            ${r.tags.map(t => `<span class="recipe-tag">${t}</span>`).join('')}
+          </div>
+          <button class="recipe-shopping-btn" onclick="event.stopPropagation(); openShoppingList(${r.id})" title="Shopping list">
+            🛒 Shopping list
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function togglePin(id, btn) {
@@ -53,13 +59,70 @@ function togglePin(id, btn) {
 }
 
 function renderPinned() {
-  const grid = document.getElementById('pinned-grid');
+  const grid  = document.getElementById('pinned-grid');
   const empty = document.getElementById('pinned-empty');
+  if (!grid) return;
 
-  // Look up each pinned id across currentRecipes first, then static samples
-  const pinnedRecipes = pinned
-    .map(id => currentRecipes.find(r => r.id === id) || SAMPLE_RECIPES.find(r => r.id === id))
-    .filter(Boolean);
+  // Look up pinned recipes — currentRecipes and SAMPLE_RECIPES first (fast, no network)
+  const found   = [];
+  const missing = [];
+
+  for (const id of pinned) {
+    const r = currentRecipes.find(r => r.id === id) || SAMPLE_RECIPES.find(r => r.id === id);
+    if (r) found.push(r);
+    else    missing.push(id);
+  }
+
+  // If any pinned IDs aren't in memory, fetch them from Supabase
+  if (missing.length) {
+    fetchRecipesByIds(missing).then(fetched => {
+      // Merge into currentRecipes so findRecipe works for modals too
+      for (const r of fetched) {
+        if (!currentRecipes.find(x => x.id === r.id)) currentRecipes.push(r);
+      }
+      renderPinnedList([...found, ...fetched]);
+    }).catch(() => renderPinnedList(found));
+    // Show what we have immediately while fetching
+    if (found.length) renderPinnedList(found);
+    else { empty.style.display = 'flex'; grid.innerHTML = ''; }
+    return;
+  }
+
+  renderPinnedList(found);
+}
+
+async function fetchRecipesByIds(ids) {
+  if (!ids.length) return [];
+  try {
+    const res = await fetch(`/api/search`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      // Special mode: fetch by IDs directly
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.recipes || []).map(row => ({
+      id:           row.id,
+      icon:         typeof pickIcon === 'function' ? pickIcon(row.ner || []) : '🍽️',
+      name:         row.title,
+      time:         '–',
+      cal:          null,
+      tags:         row.tags || [],
+      ingredients:  row.ingredients || [],
+      instructions: row.directions  || [],
+      nutrition:    null,
+      ner:          row.ner || [],
+      source:       row.source || null,
+      link:         row.link   || null,
+    }));
+  } catch { return []; }
+}
+
+function renderPinnedList(pinnedRecipes) {
+  const grid  = document.getElementById('pinned-grid');
+  const empty = document.getElementById('pinned-empty');
+  if (!grid) return;
 
   if (!pinnedRecipes.length) {
     empty.style.display = 'flex';
@@ -80,12 +143,8 @@ function renderPinned() {
       </div>
       <div class="recipe-card-body">
         <h4>${r.name}</h4>
-        <div class="recipe-card-meta">
-          <span>⏱ ${r.time}</span>
-          <span>🔥 ${r.cal} kcal</span>
-        </div>
         <div class="recipe-card-tags">
-          ${r.tags.map((t) => `<span class="recipe-tag">${t}</span>`).join('')}
+          ${(r.tags || []).map(t => `<span class="recipe-tag">${t}</span>`).join('')}
         </div>
       </div>
     </div>
@@ -128,6 +187,11 @@ function openModal(id) {
     <span>${pinned.includes(id) ? '📌 Pinned' : '🔖 Not pinned'}</span>
     ${r.link ? `<a href="${r.link}" target="_blank" rel="noopener" style="font-size:0.78rem;color:var(--moss);">View original ↗</a>` : ''}
   `;
+
+  // Reset servings to default and clear cached raw nutrition
+  _rawNutrition = null;
+  const servingsEl = document.getElementById('modal-servings');
+  if (servingsEl) { servingsEl.value = '4'; delete servingsEl.dataset.wired; }
 
   // Show modal immediately with loading state in nutrition panel
   renderNutritionLoading();
@@ -224,19 +288,32 @@ function openModal(id) {
 }
 
 function renderNutritionLoading() {
-  // Destroy old chart
   if (nutritionChartInstance) { nutritionChartInstance.destroy(); nutritionChartInstance = null; }
-
   document.getElementById('modal-calories').textContent = '–';
   document.getElementById('modal-fiber').textContent = '–';
   document.getElementById('modal-fiber-dv').textContent = '';
   document.getElementById('nutrition-legend').innerHTML = `
-    <div class="legend-item nutrition-loading">Fetching live data…</div>
+    <div class="legend-item nutrition-loading">Fetching nutrition data…</div>
   `;
 }
 
+// Store raw totals so servings input can recalculate without re-fetching
+let _rawNutrition = null;
+
 function renderNutritionPanel(n, isLive) {
-  // n may be null for dataset recipes before FDC responds
+  _rawNutrition = n;
+  const servingsEl = document.getElementById('modal-servings');
+
+  // Wire servings input to recalculate on change
+  if (servingsEl && !servingsEl.dataset.wired) {
+    servingsEl.dataset.wired = '1';
+    servingsEl.addEventListener('input', () => {
+      if (_rawNutrition) renderNutritionPanel(_rawNutrition, isLive);
+    });
+  }
+
+  const servings = Math.max(1, parseInt(servingsEl?.value || '4'));
+
   if (!n) {
     document.getElementById('modal-calories').textContent = '–';
     document.getElementById('modal-fiber').textContent = '–';
@@ -246,26 +323,33 @@ function renderNutritionPanel(n, isLive) {
     return;
   }
 
-  const cal = n.calories ?? n.cal ?? '–';
-  document.getElementById('modal-calories').textContent = cal;
-  document.getElementById('modal-fiber').textContent = n.fiber ?? '–';
-  const fiberDV = n.fiber ? Math.round((n.fiber / 28) * 100) : 0;
-  document.getElementById('modal-fiber-dv').textContent = n.fiber ? `(${fiberDV}% DV)` : '';
+  // Divide totals by servings
+  const perServing = {
+    calories: Math.round((n.calories ?? n.cal ?? 0) / servings),
+    protein:  Math.round((n.protein  ?? 0) / servings),
+    fat:      Math.round((n.fat      ?? 0) / servings),
+    carbs:    Math.round((n.carbs    ?? 0) / servings),
+    fiber:    Math.round((n.fiber    ?? 0) / servings),
+  };
+
+  document.getElementById('modal-calories').textContent = perServing.calories || '–';
+  document.getElementById('modal-fiber').textContent    = perServing.fiber    || '–';
+  const fiberDV = perServing.fiber ? Math.round((perServing.fiber / 28) * 100) : 0;
+  document.getElementById('modal-fiber-dv').textContent = perServing.fiber ? `(${fiberDV}% DV)` : '';
 
   document.getElementById('nutrition-legend').innerHTML = `
-    <div class="legend-item"><span class="legend-dot" style="background:#5A7D5B"></span> Protein <strong>${n.protein ?? '–'}g</strong></div>
-    <div class="legend-item"><span class="legend-dot" style="background:#D4A843"></span> Carbs <strong>${n.carbs ?? '–'}g</strong></div>
-    <div class="legend-item"><span class="legend-dot" style="background:#C4633A"></span> Fat <strong>${n.fat ?? '–'}g</strong></div>
+    <div class="legend-item"><span class="legend-dot" style="background:#5A7D5B"></span> Protein <strong>${perServing.protein}g</strong></div>
+    <div class="legend-item"><span class="legend-dot" style="background:#D4A843"></span> Carbs <strong>${perServing.carbs}g</strong></div>
+    <div class="legend-item"><span class="legend-dot" style="background:#C4633A"></span> Fat <strong>${perServing.fat}g</strong></div>
     ${isLive
-      ? '<div class="legend-source">Source: USDA FoodData Central</div>'
-      : '<div class="legend-source legend-source--fallback">Estimated values</div>'}
+      ? '<div class="legend-source">Source: USDA SR Legacy · per serving</div>'
+      : '<div class="legend-source legend-source--fallback">Estimated · per serving</div>'}
   `;
 
   if (nutritionChartInstance) { nutritionChartInstance.destroy(); nutritionChartInstance = null; }
 
-  // Only draw chart if all three macros are present and non-zero
-  const { protein, carbs, fat } = n;
-  if (protein != null && carbs != null && fat != null && (protein + carbs + fat) > 0) {
+  const { protein, carbs, fat } = perServing;
+  if ((protein + carbs + fat) > 0) {
     const ctx = document.getElementById('nutritionChart').getContext('2d');
     nutritionChartInstance = new Chart(ctx, {
       type: 'doughnut',
@@ -275,13 +359,13 @@ function renderNutritionPanel(n, isLive) {
           data: [protein, carbs, fat],
           backgroundColor: ['#5A7D5B', '#D4A843', '#C4633A'],
           borderWidth: 0,
-          hoverOffset: 6,
+          hoverOffset: 4,
         }],
       },
       options: {
-        cutout: '62%',
+        cutout: '65%',
         plugins: {
-          legend: { display: false },
+          legend:  { display: false },
           tooltip: { callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.parsed}g` } },
         },
       },

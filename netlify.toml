@@ -2,11 +2,10 @@
   publish = "."
   functions = "netlify/functions"
 
-# Rewrite /api/nutrition/* → the serverless function
-# This keeps the URL clean and hides the implementation detail from the browser
+# Nutrition lookup — POST /api/nutrition → Supabase dataset (no external API)
 [[redirects]]
-  from = "/api/nutrition/*"
-  to   = "/.netlify/functions/nutrition/:splat"
+  from = "/api/nutrition"
+  to   = "/.netlify/functions/nutrition"
   status = 200
 
 [[redirects]]
@@ -17,6 +16,11 @@
 [[redirects]]
   from = "/api/forum/recent"
   to   = "/.netlify/functions/forum/recent"
+  status = 200
+
+[[redirects]]
+  from = "/api/forum/profile"
+  to   = "/.netlify/functions/forum/profile"
   status = 200
 
 [[redirects]]

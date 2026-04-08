@@ -214,11 +214,12 @@
   <div style="max-width:1200px;margin:0 auto;">
     <div class="section-label">AI Meal Planning</div>
     <h2>Your week, planned out</h2>
-    <p class="section-sub">Generate a full 7-day meal plan based on your pinned recipes and dietary preferences. Balanced, varied, and designed for you.</p>
+    <p class="section-sub">Three meals a day, seven days a week. Drag meals to rearrange. Adjust servings per meal.</p>
+    <div style="display:flex;gap:0.8rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
+      <button class="generate-plan-btn" onclick="generateMealPlan()">✨ Generate 7-Day Plan</button>
+      <button class="mp-toggle-btn" onclick="clearMealPlan()" style="margin-left:auto;opacity:0.7;">✕ Clear all</button>
+    </div>
     <div class="meal-plan-grid" id="meal-plan-grid"></div>
-    <button class="generate-plan-btn" onclick="generateMealPlan()">
-      ✨ Generate 7-Day Plan
-    </button>
   </div>
 </section>
 
@@ -338,6 +339,10 @@
       <div class="nutrition-stats">
         <div class="nutrition-stat">🔥 <strong id="modal-calories"></strong> kcal</div>
         <div class="nutrition-stat">🌾 Fiber: <strong id="modal-fiber"></strong>g <span class="fiber-dv" id="modal-fiber-dv"></span></div>
+        <div class="nutrition-servings">
+          <label for="modal-servings">Servings:</label>
+          <input type="number" id="modal-servings" min="1" max="20" value="4">
+        </div>
       </div>
     </div>
 
@@ -362,17 +367,38 @@
   </div>
 </div>
 
+<!-- MEAL PICKER MODAL -->
+<div class="modal-backdrop" id="mp-picker-modal" onclick="closeMealPicker(event)">
+  <div class="modal" style="max-width:480px;">
+    <button class="modal-close" onclick="closeMealPickerBtn()">✕</button>
+    <div class="modal-icon">📅</div>
+    <h3 id="mp-picker-title">Add meal</h3>
+    <p style="font-size:0.82rem;color:var(--stone);margin:0.3rem 0 1rem;">Choose from your pinned recipes. "Servings left" shows how many portions remain from the current batch before you need to cook again.</p>
+    <div id="mp-picker-body" style="display:flex;flex-direction:column;gap:0.4rem;max-height:400px;overflow-y:auto;"></div>
+  </div>
+</div>
+
 <!-- GROCERY MODAL -->
 <div class="modal-backdrop" id="grocery-backdrop" onclick="closeGrocery(event)">
   <div class="modal" id="grocery-modal">
     <button class="modal-close" onclick="document.getElementById('grocery-backdrop').classList.remove('open')">✕</button>
     <div class="modal-icon">🛒</div>
-    <h3>Your Grocery List</h3>
-    <p style="font-size:0.85rem;color:var(--stone);margin:0.5rem 0 1.2rem;">Based on your pinned recipes — items you may need to buy:</p>
-    <ul id="grocery-list" style="list-style:none;display:flex;flex-direction:column;gap:0.5rem;"></ul>
+    <h3 id="grocery-modal-title">Your Shopping List</h3>
+    <p style="font-size:0.85rem;color:var(--stone);margin:0.5rem 0 1.2rem;">Items you'll need to buy — ingredients you already have are excluded.</p>
+    <ul id="grocery-list" style="list-style:none;display:flex;flex-direction:column;gap:0.2rem;"></ul>
     <div class="modal-actions" style="margin-top:1.5rem;">
       <button class="btn-primary" onclick="document.getElementById('grocery-backdrop').classList.remove('open')">Done</button>
     </div>
+  </div>
+</div>
+
+<!-- PROFILE MODAL -->
+<div class="modal-backdrop" id="profile-backdrop" onclick="if(event.target===this)closeProfile()">
+  <div class="modal auth-modal">
+    <button class="modal-close" onclick="closeProfile()">✕</button>
+    <div class="modal-icon">👤</div>
+    <h3>My profile</h3>
+    <div id="profile-modal-body"></div>
   </div>
 </div>
 
@@ -386,7 +412,7 @@
   </div>
 </div>
 
-<!-- SCRIPTS -->
+<!-- SCRIPTS — load order matters: data & state first, then modules, then app init -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="js/data.js"></script>
 <script src="js/state.js"></script>

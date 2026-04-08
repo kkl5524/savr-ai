@@ -1,116 +1,63 @@
-// Netlify serverless function — proxies requests to USDA FoodData Central.
-// FDC_API_KEY is set in Netlify dashboard → Environment variables.
+// netlify/functions/nutrition.js
+// Looks up nutrition data from the USDA SR Legacy dataset in Supabase.
+// No external API calls — all data is local to your Supabase project.
 //
-// CRASH CASE 2 MITIGATION: API flooding / rate exhaustion
+// POST /api/nutrition
+// Body: { ner: ['garlic', 'chicken', 'olive oil'] }
+// Returns: array of { ner_term, fdc_id, description, calories, protein, fat, carbs, fiber }
 
-const fetch = globalThis.fetch ?? require('node-fetch');
-// ─────────────────────────────────────────────────────────
-// Vulnerability: each recipe modal fires one FDC search + one FDC detail
-// request per ingredient (up to 12+). A bot or a user rapidly opening modals
-// can exhaust the FDC rate limit (30 req/hr on DEMO_KEY, 1000/hr on a real key)
-// and Netlify's function invocation budget. The nutrition proxy has no guards.
-//
-// Attack to reproduce:
-//   for (let i = 0; i < 200; i++) fetch('/api/nutrition/foods/search?query=garlic')
-//   → 429 from FDC within seconds; all nutrition lookups fail globally.
-//
-// Mitigations implemented:
-//   1. Per-IP rate limit: max 60 nutrition requests per 15-minute window,
-//      tracked in a module-level Map (persists across warm invocations).
-//   2. Allowlist: only /foods/search and /food/{numeric-id} paths are
-//      forwarded — arbitrary path traversal to other FDC endpoints is blocked.
-//   3. Query param sanitisation: only the expected params (query, dataType,
-//      pageSize, nutrients) are forwarded — injection of api_key overrides
-//      or other params is stripped.
-//   4. Timeout: requests to FDC are aborted after 8 seconds to prevent
-//      Netlify function timeouts from cascading.
+const SUPABASE_URL         = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY    = process.env.SUPABASE_ANON_KEY;
 
-const FDC_BASE          = 'https://api.nal.usda.gov/fdc/v1';
-const RATE_WINDOW_MS    = 15 * 60 * 1000;  // 15 minutes
-const RATE_LIMIT        = 60;               // requests per window per IP
-const REQUEST_TIMEOUT   = 8000;             // ms
-
-// Module-level store — survives warm Lambda invocations
-const ipWindows = new Map(); // ip → { count, windowStart }
-
-function getRateLimitKey(event) {
-  // Netlify sets the real client IP in x-nf-client-connection-ip
-  return event.headers?.['x-nf-client-connection-ip']
-      || event.headers?.['x-forwarded-for']?.split(',')[0]?.trim()
-      || 'unknown';
+let fetch;
+try {
+  fetch = globalThis.fetch ?? require('node-fetch').default ?? require('node-fetch');
+} catch (e) {
+  fetch = globalThis.fetch;
 }
-
-function checkRateLimit(ip) {
-  const now    = Date.now();
-  const record = ipWindows.get(ip);
-
-  if (!record || now - record.windowStart > RATE_WINDOW_MS) {
-    ipWindows.set(ip, { count: 1, windowStart: now });
-    return true; // allowed
-  }
-
-  if (record.count >= RATE_LIMIT) return false; // blocked
-
-  record.count++;
-  return true; // allowed
-}
-
-// Only allow these two path patterns
-const ALLOWED_PATHS = [
-  /^foods\/search$/,
-  /^food\/\d+$/,
-];
-
-// Only forward these query params — anything else is stripped
-const ALLOWED_PARAMS = new Set(['query', 'dataType', 'pageSize', 'nutrients', 'pageNumber']);
 
 exports.handler = async (event) => {
-  const apiKey = process.env.FDC_API_KEY;
-  if (!apiKey) {
-    return json(500, { error: 'FDC_API_KEY environment variable not set' });
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return json(500, { error: 'Supabase env vars not configured' });
   }
 
-  // ── Rate limit check ──────────────────────────────────────────────────────
-  const ip = getRateLimitKey(event);
-  if (!checkRateLimit(ip)) {
-    return json(429, { error: 'Too many nutrition requests — please wait a moment.' });
+  if (event.httpMethod !== 'POST') {
+    return json(405, { error: 'Method not allowed' });
   }
 
-  // ── Path allowlist ────────────────────────────────────────────────────────
-  const subpath = event.path.replace(/^\/?api\/nutrition\/?/, '').replace(/^\//, '');
-  if (!subpath || !ALLOWED_PATHS.some(re => re.test(subpath))) {
-    return json(400, { error: 'Invalid FDC path' });
+  let body;
+  try {
+    body = JSON.parse(event.body || '{}');
+  } catch {
+    return json(400, { error: 'Invalid JSON body' });
   }
 
-  // ── Query param sanitisation ──────────────────────────────────────────────
-  const rawParams = event.queryStringParameters || {};
-  const safeParams = new URLSearchParams();
-  for (const [k, v] of Object.entries(rawParams)) {
-    if (ALLOWED_PARAMS.has(k)) safeParams.set(k, v);
-  }
-  safeParams.set('api_key', apiKey);
+  const { ner = [] } = body;
+  if (!ner.length) return json(400, { error: 'ner array is required' });
 
-  const url = `${FDC_BASE}/${subpath}?${safeParams.toString()}`;
-
-  // ── Fetch with timeout ─────────────────────────────────────────────────────
-  const controller = new AbortController();
-  const timer      = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+  // Cap at 20 terms to prevent abuse
+  const nerTerms = ner.slice(0, 20).map(t => String(t).toLowerCase().trim()).filter(Boolean);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    const body = await response.text();
-    return {
-      statusCode: response.status,
-      headers: { 'Content-Type': 'application/json' },
-      body,
-    };
-  } catch (err) {
-    clearTimeout(timer);
-    if (err.name === 'AbortError') {
-      return json(504, { error: 'FDC request timed out' });
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_recipe_nutrition`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'apikey':        SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ p_ner: nerTerms }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      return json(res.status, { error: data?.message ?? 'Nutrition lookup failed' });
     }
-    return json(502, { error: 'FDC request failed', detail: err.message });
+
+    return json(200, data);
+  } catch (err) {
+    console.error('[nutrition] error:', err.message);
+    return json(502, { error: 'Nutrition lookup failed', detail: err.message });
   }
 };
 
