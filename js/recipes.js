@@ -250,7 +250,9 @@ function openModal(id) {
   }
 
   function renderSteps(candidates = null) {
-    document.querySelectorAll('#modal-steps li').forEach((li, i) => {
+    document.querySelectorAll('#modal-steps .modal-step-item').forEach((li, i) => {
+      const textSpan = li.querySelector('.modal-step-text');
+      if (!textSpan) return;
       let text = steps[i];
       if (candidates && candidates.length) {
         const isMatch = candidates.some(w => text.toLowerCase().includes(w));
@@ -259,16 +261,42 @@ function openModal(id) {
             text = text.replace(new RegExp(`\\b(${w}\\w*)`, 'gi'), '<mark class="step-highlight">$1</mark>');
           });
         }
-        li.innerHTML = text;
+        textSpan.innerHTML = text;
         li.classList.toggle('step-active', isMatch);
       } else {
-        li.innerHTML = text;
+        textSpan.innerHTML = text;
         li.classList.remove('step-active');
       }
     });
   }
 
-  document.getElementById('modal-steps').innerHTML = steps.map(s => `<li>${s}</li>`).join('');
+  const stepsOl = document.getElementById('modal-steps');
+  stepsOl.innerHTML = steps.map((s, i) => `
+    <li class="modal-step-item">
+      <span class="modal-step-text">${s}</span>
+      <button class="step-chat-btn" title="Ask AI about this step" data-step-index="${i}">?</button>
+    </li>`).join('');
+
+  // Wire step buttons via event delegation
+  stepsOl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.step-chat-btn');
+    if (!btn) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const idx = parseInt(btn.dataset.stepIndex);
+    if (!isNaN(idx) && steps[idx]) openAiChatForStep(steps[idx]);
+  });
+
+  // General recipe chat button
+  const actionsEl = document.getElementById('modal-actions-row');
+  if (actionsEl) {
+    actionsEl.querySelector('.recipe-ask-btn')?.remove();
+    const askBtn = document.createElement('button');
+    askBtn.className = 'btn-secondary recipe-ask-btn';
+    askBtn.textContent = '? Ask AI about this recipe';
+    askBtn.onclick = () => openAiChatForRecipe(r);
+    actionsEl.appendChild(askBtn);
+  }
 
   const ingredientUL = document.getElementById('modal-ingredients');
   ingredientUL.innerHTML = (r.ingredients || []).map(ing => `<li>${ing}</li>`).join('');

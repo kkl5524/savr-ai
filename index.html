@@ -18,7 +18,6 @@
     <li><a href="#pinned">📌 Pinned <span class="pin-badge" id="nav-pin-badge" style="display:none"></span></a></li>
     <li><a href="#meal-plan">Meal Plan</a></li>
     <li><a href="#forum">Community</a></li>
-    <li><a href="#chat">AI Chef</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#tool" class="nav-cta">Get Started</a></li>
   </ul>
@@ -217,53 +216,10 @@
     <p class="section-sub">Three meals a day, seven days a week. Drag meals to rearrange. Adjust servings per meal.</p>
     <div style="display:flex;gap:0.8rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;">
       <button class="generate-plan-btn" onclick="generateMealPlan()">✨ Generate 7-Day Plan</button>
+      <button class="mp-toggle-btn" onclick="openAiChatForMealPlan()" title="Ask AI about your meal plan">? Ask AI</button>
       <button class="mp-toggle-btn" onclick="clearMealPlan()" style="margin-left:auto;opacity:0.7;">✕ Clear all</button>
     </div>
     <div class="meal-plan-grid" id="meal-plan-grid"></div>
-  </div>
-</section>
-
-<!-- CHAT -->
-<section class="chat-section" id="chat">
-  <div>
-    <div class="section-label">AI Chef</div>
-    <h2>Ask your personal chef anything</h2>
-    <p class="section-sub">Need to swap an ingredient? Want a healthier version? Ask follow-up questions and get instant, personalized cooking advice.</p>
-    <div class="quick-prompts">
-      <button class="quick-prompt" onclick="sendQuickPrompt('How can I make this recipe lower in sodium?')">
-        <span class="qp-icon">🧂</span> How can I make this recipe lower in sodium?
-      </button>
-      <button class="quick-prompt" onclick="sendQuickPrompt('Suggest a substitute for heavy cream')">
-        <span class="qp-icon">🥛</span> Suggest a substitute for heavy cream
-      </button>
-      <button class="quick-prompt" onclick="sendQuickPrompt('What can I make with only pantry staples?')">
-        <span class="qp-icon">🫙</span> What can I make with only pantry staples?
-      </button>
-      <button class="quick-prompt" onclick="sendQuickPrompt('How do I meal prep this for the week?')">
-        <span class="qp-icon">📦</span> How do I meal prep this for the week?
-      </button>
-    </div>
-  </div>
-  <div>
-    <div class="chat-window">
-      <div class="chat-header">
-        <div class="chat-avatar">🌿</div>
-        <div class="chat-header-info">
-          <h4>Savr AI Chef</h4>
-          <span>● Online — ready to cook</span>
-        </div>
-      </div>
-      <div class="chat-messages" id="chat-messages">
-        <div class="message ai">
-          <div class="msg-icon">🤖</div>
-          <div class="msg-bubble">Hi! I'm your AI Chef. I can help you modify recipes, suggest substitutions, or plan your meals. What are you cooking today? 🥕</div>
-        </div>
-      </div>
-      <div class="chat-input-row">
-        <input type="text" id="chat-input" placeholder="Ask me anything about cooking..." onkeypress="if(event.key==='Enter')sendChat()" />
-        <button class="chat-send" onclick="sendChat()">➤</button>
-      </div>
-    </div>
   </div>
 </section>
 
@@ -324,7 +280,29 @@
   <span>© 2025 Savr.ai</span>
 </footer>
 
-<!-- RECIPE MODAL -->
+<!-- FLOATING AI CHAT -->
+<div id="ai-chat-bubble" class="ai-chat-bubble" onclick="toggleAiChat()" title="Ask Savr AI">?</div>
+
+<div id="ai-chat-panel" class="ai-chat-panel">
+  <div class="ai-chat-panel-header">
+    <div class="ai-chat-panel-title">
+      <span class="ai-chat-panel-avatar">🌿</span>
+      <div>
+        <div style="font-weight:700;font-size:0.9rem;">Savr AI Chef</div>
+        <div id="ai-chat-context-label" style="font-size:0.72rem;opacity:0.6;"></div>
+      </div>
+    </div>
+    <button class="ai-chat-close" onclick="closeAiChat()">✕</button>
+  </div>
+  <div class="ai-chat-messages" id="ai-chat-messages"></div>
+  <div class="ai-chat-input-row">
+    <input id="ai-chat-input" class="ai-chat-input" placeholder="Ask about this recipe…"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAiChat();}">
+    <button class="ai-chat-send" onclick="sendAiChat()">➤</button>
+  </div>
+</div>
+
+
 <div class="modal-backdrop" id="modal-backdrop" onclick="closeModal(event)">
   <div class="modal" id="recipe-modal">
     <button class="modal-close" onclick="closeModalBtn()">✕</button>
@@ -357,7 +335,7 @@
         <ol id="modal-steps"></ol>
       </div>
     </div>
-    <div class="modal-actions">
+    <div class="modal-actions" id="modal-actions-row">
       <button class="btn-primary" onclick="closeModalBtn()">← Back</button>
       <button class="btn-secondary" id="modal-pin-btn" onclick="pinFromModal()">📌 Pin Recipe</button>
     </div>
