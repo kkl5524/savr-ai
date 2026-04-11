@@ -115,22 +115,64 @@ function removeAiTyping() {
   document.getElementById('ai-typing-indicator')?.remove();
 }
 
+// ── Read current user preferences from active filter chips ────────────────
+function getUserPreferences() {
+  const allergies  = [];
+  const dietary    = [];
+  const appliances = [];
+  const cuisines   = [];
+
+  document.querySelectorAll('.chip.active').forEach(chip => {
+    const text = chip.textContent.trim();
+    if (chip.closest('#allergy-chips'))       allergies.push(text);
+    else if (chip.closest('#appliance-chips')) appliances.push(text);
+    else if (chip.closest('#cuisine-chips'))   cuisines.push(text);
+    else                                       dietary.push(text);
+  });
+
+  return { allergies, dietary, appliances, cuisines };
+}
+
+// ── Build preference context string ───────────────────────────────────────
+function buildPreferenceContext() {
+  const { allergies, dietary, appliances, cuisines } = getUserPreferences();
+  const lines = [];
+
+  if (allergies.length) {
+    lines.push(`ALLERGIES (strict — never suggest these): ${allergies.map(a => a.replace(/^[^\w]+/, '').trim()).join(', ')}`);
+  }
+  if (dietary.length) {
+    lines.push(`Dietary preferences: ${dietary.map(d => d.replace(/^[^\w]+/, '').trim()).join(', ')}`);
+  }
+  if (appliances.length) {
+    lines.push(`Available kitchen appliances: ${appliances.map(a => a.replace(/^[^\w]+/, '').trim()).join(', ')}`);
+  }
+  if (cuisines.length) {
+    lines.push(`Preferred cuisines: ${cuisines.map(c => c.replace(/^[\W]+/, '').trim()).join(', ')}`);
+  }
+
+  return lines.length
+    ? `\n\nUser preferences:\n${lines.join('\n')}`
+    : '';
+}
+
 // ── Build system prompt from context ──────────────────────────────────────
 function buildSystemPrompt() {
   const base = 'You are Savr AI, a friendly expert cooking assistant embedded in a recipe app. Be concise, practical, and specific. Never give generic advice — always relate to the actual recipe or context provided.';
+  const prefs = buildPreferenceContext();
 
-  if (!_chatContext) return base;
+  if (!_chatContext) return base + prefs;
 
   if (_chatContext.type === 'recipe' && _chatContext.recipe) {
     const r = _chatContext.recipe;
     const ings = (r.ingredients || []).slice(0, 10).join(', ');
-    return `${base}\n\nCurrent recipe: "${r.name}"\nIngredients: ${ings}\nSteps: ${(r.instructions || []).length} steps.`;
+    return `${base}${prefs}\n\nCurrent recipe: "${r.name}"\nIngredients: ${ings}\nSteps: ${(r.instructions || []).length} steps.`;
   }
 
   if (_chatContext.type === 'step' && _chatContext.step) {
     const r = _chatContext.recipe;
     const recipePart = r ? `Recipe: "${r.name}". ` : '';
-    return `${base}\n\n${recipePart}The user is asking about this specific step: "${_chatContext.step}"`;
+    return `${base}${prefs}\n\n${recipePart}The user is asking about this specific step: "${_chatContext.step}"`;
   }
 
   if (_chatContext.type === 'mealplan' && _chatContext.plan) {
@@ -142,10 +184,10 @@ function buildSystemPrompt() {
         return r ? `${d.day} ${s}: ${r.name}` : null;
       }).filter(Boolean))
       .join(', ');
-    return `${base}\n\nThe user's 7-day meal plan includes: ${meals || 'various recipes'}.`;
+    return `${base}${prefs}\n\nThe user's 7-day meal plan includes: ${meals || 'various recipes'}.`;
   }
 
-  return base;
+  return base + prefs;
 }
 
 // ── Send message ──────────────────────────────────────────────────────────
@@ -163,25 +205,29 @@ async function sendAiChat() {
   appendAiTyping();
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
+    const res = await fetch('/api/chat', {
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model:      'claude-sonnet-4-20250514',
-        max_tokens: 400,
-        system:     buildSystemPrompt(),
-        messages:   _chatHistory,
+        system:    buildSystemPrompt(),
+        messages:  _chatHistory,
+        allergens: getUserPreferences().allergies, // passed separately for server-side enforcement
       }),
     });
 
     const data = await res.json();
-    const reply = data.content?.[0]?.text ?? 'Sorry, I couldn\'t get a response.';
+
+    if (!res.ok) {
+      throw new Error(data.error || `Request failed ${res.status}`);
+    }
+
+    const reply = data.reply ?? 'Sorry, I couldn\'t get a response.';
 
     removeAiTyping();
     appendAiMessage('ai', reply);
     _chatHistory.push({ role: 'assistant', content: reply });
 
-    // Keep history at max 10 turns to avoid token creep
+    // Keep history at max 20 turns
     if (_chatHistory.length > 20) _chatHistory = _chatHistory.slice(-20);
 
   } catch (err) {
