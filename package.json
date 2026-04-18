@@ -1,1 +1,37 @@
-{"name":"savr-ai","version":"1.0.0","private":true,"dependencies":{"node-fetch":"^3.3.2"}}
+{
+  "name": "savr-ai",
+  "version": "1.0.0",
+  "description": "Savr.ai — AI-powered recipe and meal planning app",
+  "private": true,
+  "scripts": {
+    "test": "jest --verbose",
+    "test:backend": "jest --verbose --testPathPattern=backend",
+    "test:frontend": "jest --verbose --testPathPattern=frontend"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "npx": "^3.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^30.3.0"
+  },
+  "jest": {
+    "projects": [
+      {
+        "displayName": "backend",
+        "testEnvironment": "node",
+        "testMatch": [
+          "**/tests/backend/**/*.test.js"
+        ]
+      },
+      {
+        "displayName": "frontend",
+        "testEnvironment": "jsdom",
+        "testMatch": [
+          "**/tests/frontend/**/*.test.js"
+        ]
+      }
+    ]
+  }
+}

@@ -281,7 +281,7 @@
 </footer>
 
 <!-- FLOATING AI CHAT -->
-<div id="ai-chat-bubble" class="ai-chat-bubble" onclick="toggleAiChat()" title="Ask Savr AI">?</div>
+<div id="ai-chat-bubble" class="ai-chat-bubble" onclick="toggleAiChat(event)" title="Ask Savr AI">?</div>
 
 <div id="ai-chat-panel" class="ai-chat-panel">
   <div class="ai-chat-panel-header">
@@ -338,10 +338,22 @@
     <div class="modal-actions" id="modal-actions-row">
       <button class="btn-primary" onclick="closeModalBtn()">← Back</button>
       <button class="btn-secondary" id="modal-pin-btn" onclick="pinFromModal()">📌 Pin Recipe</button>
+      <button class="btn-secondary" id="forum-toggle-btn" onclick="toggleForumPanel()">💬 Community Tips</button>
     </div>
 
-    <!-- FORUM (tips per recipe) -->
-    <div id="modal-forum-container"></div>
+    <!-- FORUM SIDE PANEL -->
+    <div id="modal-forum-panel" class="forum-panel" style="display:none;">
+      <div class="forum-panel-header">
+        <span class="modal-section-title" style="margin:0;">Community Tips</span>
+        <div style="display:flex;gap:0.6rem;align-items:center;">
+          <button class="forum-summarise-btn" id="forum-summarise-btn">✨ AI Summary</button>
+          <button class="forum-panel-close" onclick="toggleForumPanel()">✕</button>
+        </div>
+      </div>
+      <div class="forum-ai-summary" id="forum-ai-summary"></div>
+      <div id="forum-posts-list" class="forum-posts-container"></div>
+      <button id="forum-load-more" class="forum-load-more" style="display:none;">Load more tips</button>
+    </div>
   </div>
 </div>
 

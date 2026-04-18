@@ -7,6 +7,33 @@ function renderRecipes() {
   const grid = document.getElementById('recipes-grid');
   document.getElementById('results-count').textContent = `${currentRecipes.length} recipes found`;
 
+  if (!currentRecipes.length) {
+    const { allergies, dietary } = getActiveFilterState();
+    const hasHardFilters = allergies.length > 0 ||
+      dietary.includes('🌱 Vegan') || dietary.includes('🥗 Vegetarian');
+
+    if (hasHardFilters) {
+      const filterNames = [...allergies, ...dietary.filter(d =>
+        d === '🌱 Vegan' || d === '🥗 Vegetarian'
+      )].join(', ');
+      grid.innerHTML = `
+        <div class="results-empty">
+          <div class="results-empty-icon">🔍</div>
+          <p>No recipes matched your current filters.</p>
+          <p class="results-empty-sub">Your active filters (<strong>${filterNames}</strong>) removed all results.
+          Try removing one to see more recipes.</p>
+        </div>`;
+    } else {
+      grid.innerHTML = `
+        <div class="results-empty">
+          <div class="results-empty-icon">🍽️</div>
+          <p>No recipes found for these ingredients.</p>
+          <p class="results-empty-sub">Try adding more ingredients or different ones.</p>
+        </div>`;
+    }
+    return;
+  }
+  
   grid.innerHTML = currentRecipes.map((r) => {
     const isPinned  = pinned.includes(r.id);
     const covPct    = r.coverageScore != null ? Math.round(r.coverageScore * 100) : null;
