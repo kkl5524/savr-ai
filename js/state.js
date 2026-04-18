@@ -37,12 +37,8 @@ function migrateIngredients(raw) {
   return parsed.map(name => ({ name, qty: '', unit: '' }));
 }
 
-//let ingredients    = migrateIngredients();
-//let pinned         = safeRead('savr_pinned', [], isArrayOfIntegers);
-
-let ingredients = JSON.parse(localStorage.getItem('savr_ingredients') || '[]');
-let pinned = JSON.parse(localStorage.getItem('savr_pinned') || '[]');
-
+let ingredients    = migrateIngredients();
+let pinned         = safeRead('savr_pinned', [], isArrayOfIntegers);
 let currentRecipes = [];
 let currentModalId = null;
 let aiResponseIndex = 0;
