@@ -30,7 +30,7 @@ The rest of this README is for running the project locally to make code changes.
 ## Tech stack
 
 | Layer | Technology |
-| --- | --- |
+|---|---|
 | Frontend | Vanilla HTML, CSS, JavaScript (no framework, no build step) |
 | Backend | Netlify serverless functions (Node.js) |
 | Database | Supabase (PostgreSQL) |
@@ -87,13 +87,27 @@ You need a free Supabase account and project to use the recipe search, nutrition
 4. scripts/seed_forum.sql       — adds support for seeded forum posts
 ```
 
-5. Import the recipe and nutrition datasets. In the Codespaces terminal:
+5. Import the recipe and nutrition datasets. First set up the Python virtual environment using the provided setup script:
 
 ```bash
-pip install supabase anthropic pandas tqdm python-dotenv
+chmod +x setup.sh
+source setup.sh
+```
+
+This creates a `.venv` virtual environment and installs all Python dependencies from `requirements.txt` automatically. Then run the import scripts:
+
+```bash
 python scripts/import.py             # imports recipes (takes a few minutes)
 python scripts/import_nutrition.py   # imports USDA nutrition data
 ```
+
+To optionally seed the forum with AI-generated community posts:
+
+```bash
+python scripts/seed_forum.py --recipes 50 --posts 4 --replies 1
+```
+
+> **Note:** In future terminal sessions, reactivate the virtual environment with `source .venv/bin/activate` before running any Python scripts.
 
 **Step 4 — Create your .env file**
 
@@ -176,7 +190,10 @@ savr-ai/
 ├── index.html                  # Single-page app entry point
 ├── netlify.toml                # Netlify config — function routes and publish dir
 ├── package.json                # Node dependencies and test scripts
+├── requirements.txt            # Python dependencies for import scripts
+├── setup.sh                    # Creates and activates Python virtual environment
 ├── .env                        # Your local environment variables (not committed)
+├── .venv/                      # Python virtual environment (not committed)
 │
 ├── css/
 │   └── styles.css              # All application styles
@@ -254,6 +271,12 @@ Every subsequent push to the `main` branch automatically redeploys.
 ---
 
 ## Common issues
+
+**`source setup.sh` says permission denied**
+Run `chmod +x setup.sh` first to make the script executable, then run `source setup.sh` again.
+
+**Python scripts fail with ModuleNotFoundError**
+The virtual environment may not be active. Run `source .venv/bin/activate` to reactivate it, then retry the script.
 
 **Port forwarding notification doesn't appear in Codespaces**
 Click the **Ports** tab at the bottom of the Codespaces editor, find port 8888, and click the globe icon to open it in a browser.
