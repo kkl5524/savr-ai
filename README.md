@@ -8,6 +8,14 @@ Live at: **https://savr-ai.netlify.app**
 
 ---
 
+## Quickstart — just want to use it?
+
+Go to **https://savr-ai.netlify.app** in any browser. No account, no installation, no setup required.
+
+The rest of this README is for running the project locally to make code changes.
+
+---
+
 ## What it does
 
 - **Ingredient-first recipe search** — enter what you have, get ranked recipe matches sorted by fewest missing ingredients
@@ -32,149 +40,128 @@ Live at: **https://savr-ai.netlify.app**
 
 ---
 
-## Prerequisites
+## Running locally
 
-Before you begin, make sure you have the following installed:
-
-- **Node.js** v18 or later — https://nodejs.org
-- **npm** v9 or later (comes with Node.js)
-- **Netlify CLI** — installed in the setup steps below
-
-You will also need accounts and API keys for:
-
-- **Supabase** (free tier is sufficient) — https://supabase.com
-- **Anthropic** (Claude API key) — https://console.anthropic.com
+There are two ways to run the project locally. **GitHub Codespaces is recommended** — it requires no software installation on your computer and works in any browser.
 
 ---
 
-## Getting started
+### Option A — GitHub Codespaces (recommended, nothing to install)
 
-### Step 1 — Clone the repository
+GitHub Codespaces runs the project in a cloud environment directly from your repository. No Node.js, no Netlify CLI, and no admin permissions needed on your computer.
 
-Download the savr-ai files from https://github.com/kkl5524/savr-ai
+**Step 1 — Open a Codespace**
 
----
+1. Go to the repository on GitHub
+2. Click the green **Code** button
+3. Click the **Codespaces** tab
+4. Click **Create codespace on main**
 
-### Step 2 — Install dependencies
+Wait about a minute for the environment to load. A full VS Code editor will open in your browser with a terminal at the bottom.
+
+**Step 2 — Install dependencies**
+
+In the Codespaces terminal, run:
 
 ```bash
 npm install
-```
-
-This installs `node-fetch` (used by the Netlify functions) and the Jest testing packages. There is no frontend build step — the HTML and JavaScript files are served directly.
-
----
-
-### Step 3 — Install the Netlify CLI
-
-```bash
 npm install -g netlify-cli
 ```
 
-Verify it installed correctly:
+**Step 3 — Set up Supabase**
 
-```bash
-netlify --version
-```
+You need a free Supabase account and project to use the recipe search, nutrition, and forum features.
 
----
-
-### Step 4 — Set up Supabase
-
-1. Go to https://supabase.com and create a free account and a new project.
-2. Once your project is created, go to **Project Settings → API** and copy:
+1. Go to https://supabase.com, create a free account, and create a new project
+2. Once it loads, go to **Project Settings → API** and copy:
    - **Project URL** (looks like `https://xxxxxxxxxxxx.supabase.co`)
    - **anon public key** (long string starting with `eyJ`)
    - **service_role key** (long string — keep this private)
+3. In the Supabase dashboard, click **SQL Editor** in the left sidebar
+4. Run each of the following files in order — open the file in the Codespaces editor, copy the contents, paste into the Supabase SQL Editor, and click **Run**:
 
-3. In the Supabase dashboard, go to **SQL Editor** and run the following scripts in this exact order. Each file is in the `scripts/` folder of the project:
+```
+1. scripts/schema.sql           — creates the recipes table
+2. scripts/nutrition_schema.sql — creates the nutrition table
+3. scripts/forum_schema.sql     — creates the forum and profiles tables
+4. scripts/seed_forum.sql       — adds support for seeded forum posts
+```
 
-   ``` bash
-   1. scripts/schema.sql          — creates the recipes table
-   2. scripts/nutrition_schema.sql — creates the nutrition table
-   3. scripts/forum_schema.sql    — creates the forum_posts, profiles, and related tables
-   4. scripts/seed_forum.sql      — modifies forum_posts to support seeded posts
-   ```
+5. Import the recipe and nutrition datasets. In the Codespaces terminal:
 
-   Open each file, copy the contents, paste into the Supabase SQL Editor, and click **Run**.
+```bash
+pip install supabase anthropic pandas tqdm python-dotenv
+python scripts/import.py             # imports recipes (takes a few minutes)
+python scripts/import_nutrition.py   # imports USDA nutrition data
+```
 
-4. Import the recipe and nutrition datasets into Supabase. This requires Python 3 and the following packages:
+**Step 4 — Create your .env file**
 
-   ```bash
-   pip install supabase anthropic pandas tqdm python-dotenv
-   ```
+In the Codespaces file explorer, create a new file in the project root called `.env`. Paste the following and fill in your values:
 
-   Then run the import scripts (you need the Kaggle recipe dataset at https://www.kaggle.com/datasets/wilmerarltstrmberg/recipe-dataset-over-2m and USDA SR Legacy CSV files at https://fdc.nal.usda.gov/download-datasets):
-
-   ```bash
-   python scripts/import.py             # imports recipes
-   python scripts/import_nutrition.py   # imports USDA nutrition data
-   ```
-
-   To seed the forum with AI-generated community posts (optional):
-
-   ```bash
-   python scripts/seed_forum.py --recipes 50 --posts 4 --replies 1
-   ```
-
----
-
-### Step 5 — Create your environment file
-
-In the root of the project, create a file called `.env`:
-
-``` bash
+```
 SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 SUPABASE_ANON_KEY=your_anon_key_here
 SUPABASE_SERVICE_KEY=your_service_role_key_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 ```
 
-Replace each value with the keys you copied in Step 4 and your Anthropic API key from https://console.anthropic.com.
+Your Anthropic API key is available at https://console.anthropic.com.
 
-> **Important:** Never commit the `.env` file to GitHub. It is already listed in `.gitignore`.
+> **Important:** The `.env` file is already listed in `.gitignore` and will not be committed to GitHub.
 
----
-
-### Step 6 — Run the development server
+**Step 5 — Start the app**
 
 ```bash
 netlify dev
 ```
 
-This starts a local development server at `http://localhost:8888`. It automatically:
-
-- Serves the frontend from the project root
-- Runs the Netlify serverless functions locally
-- Loads your `.env` variables into the function environment
-
-Open `http://localhost:8888` in your browser. The app should be fully functional.
-
-If the browser shows a blank page or console errors, check:
-
-- That your `.env` file is saved in the project root (same folder as `index.html`)
-- That `netlify dev` is running without errors in the terminal
-- That you ran all four SQL scripts in Supabase successfully
+Codespaces will show a notification that a port is available. Click **Open in Browser** and the app will open in a new tab, fully functional.
 
 ---
 
-### Step 7 — Run the tests (optional)
+### Option B — Running locally on your own machine
 
-To run all tests:
+This option requires Node.js v18+, npm, Git, and Netlify CLI installed on your computer.
+
+**Step 1 — Clone the repository**
+
+```bash
+git clone https://github.com/your-username/savr-ai.git
+cd savr-ai
+```
+
+**Step 2 — Install dependencies**
+
+```bash
+npm install
+npm install -g netlify-cli
+```
+
+**Step 3 — Set up Supabase and create your .env file**
+
+Follow Steps 3 and 4 from Option A above — the Supabase setup and `.env` file are identical regardless of how you run the project.
+
+**Step 4 — Start the app**
+
+```bash
+netlify dev
+```
+
+Open `http://localhost:8888` in your browser.
+
+---
+
+## Running the tests
 
 ```bash
 npm test
 ```
 
-To run only backend tests:
+To run only backend or frontend tests:
 
 ```bash
 npm run test:backend
-```
-
-To run only frontend tests:
-
-```bash
 npm run test:frontend
 ```
 
@@ -185,7 +172,6 @@ You should see 74 tests across 5 test suites, all passing.
 ## Project structure
 
 ```
-
 savr-ai/
 ├── index.html                  # Single-page app entry point
 ├── netlify.toml                # Netlify config — function routes and publish dir
@@ -241,25 +227,27 @@ savr-ai/
 ## Environment variables
 
 | Variable | Where to get it | Used by |
-| --- | --- | --- |
+|---|---|---|
 | `SUPABASE_URL` | Supabase → Project Settings → API | All Netlify functions |
 | `SUPABASE_ANON_KEY` | Supabase → Project Settings → API | search.js, nutrition.js |
 | `SUPABASE_SERVICE_KEY` | Supabase → Project Settings → API | forum.js (write operations) |
 | `ANTHROPIC_API_KEY` | console.anthropic.com | chat.js |
 
+The `.env` file is only needed when running locally or in Codespaces. The live deployed site at `https://savr-ai.netlify.app` already has these configured in the Netlify dashboard.
+
 ---
 
 ## Deploying to Netlify (production)
 
-1. Push your project to a GitHub repository.
-2. Go to https://netlify.com, log in, and click **Add new site → Import an existing project**.
-3. Connect GitHub and select your repository.
+1. Push your project to a GitHub repository
+2. Go to https://netlify.com, log in, and click **Add new site → Import an existing project**
+3. Connect GitHub and select your repository
 4. Set the build settings:
    - **Build command:** *(leave empty)*
    - **Publish directory:** `.`
-5. Click **Deploy site**.
-6. Go to **Site → Environment variables** and add all four variables from the table above.
-7. Trigger a new deploy. The site will be live at a `.netlify.app` subdomain.
+5. Click **Deploy site**
+6. Go to **Site → Environment variables** and add all four variables from the table above
+7. Trigger a new deploy — the site will be live at a `.netlify.app` subdomain
 
 Every subsequent push to the `main` branch automatically redeploys.
 
@@ -267,20 +255,23 @@ Every subsequent push to the `main` branch automatically redeploys.
 
 ## Common issues
 
-**`netlify dev` says SUPABASE_URL not configured**
-Make sure your `.env` file is in the project root (same folder as `index.html` and `netlify.toml`), not inside a subfolder.
+**Port forwarding notification doesn't appear in Codespaces**
+Click the **Ports** tab at the bottom of the Codespaces editor, find port 8888, and click the globe icon to open it in a browser.
 
 **Recipes not loading / search returns no results**
-The recipe dataset needs to be imported into Supabase first. Run `python scripts/import.py` and confirm the `recipes` table has rows in the Supabase Table Editor.
+The recipe dataset needs to be imported into Supabase first. Run `python scripts/import.py` and confirm the `recipes` table has rows in the Supabase Table Editor before testing search.
 
 **AI chat says "trouble connecting"**
-Check that `ANTHROPIC_API_KEY` is set in `.env` and that `netlify dev` was restarted after you added it. Environment variables are only loaded at startup.
+Check that `ANTHROPIC_API_KEY` is set correctly in your `.env` file and that you restarted `netlify dev` after creating or editing the file. Environment variables are only loaded at startup.
 
 **Nutrition panel shows dashes**
-The nutrition dataset needs to be imported separately from the recipes. Run `python scripts/import_nutrition.py`.
+The nutrition dataset is imported separately from the recipes. Run `python scripts/import_nutrition.py` to populate the nutrition table.
+
+**SQL Editor returns an error about an existing function**
+If `forum_schema.sql` or `seed_forum.sql` errors on a function that already exists, run the DROP commands shown in the error first, then re-run the file.
 
 **Tests fail with module not found**
-Run `npm install` first to install Jest and the other dev dependencies.
+Run `npm install` first to install Jest and the other dev dependencies before running `npm test`.
 
 ---
 
