@@ -104,7 +104,7 @@ netlify --version
    pip install supabase anthropic pandas tqdm python-dotenv
    ```
 
-   Then run the import scripts (you need the Kaggle recipe dataset and USDA SR Legacy CSV files — see notes in each script for download links):
+   Then run the import scripts (you need the Kaggle recipe dataset at https://www.kaggle.com/datasets/wilmerarltstrmberg/recipe-dataset-over-2m and USDA SR Legacy CSV files at https://fdc.nal.usda.gov/download-datasets):
 
    ```bash
    python scripts/import.py             # imports recipes
