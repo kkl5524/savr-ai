@@ -149,12 +149,12 @@ The USDA nutrition data is already included in the `data/` folder of the reposit
 1. Go to https://www.kaggle.com/datasets/wilmerarltstrmberg/recipe-dataset-over-2m
 2. Click **Download** (you will need a free Kaggle account)
 3. Unzip the downloaded file
-4. Find the CSV file inside (named `recipes.csv`)
+4. Find the CSV file inside (named `recipes_data.csv`)
 5. Upload it into the Codespace by dragging and dropping it into the file explorer on the left sidebar, into the project root
 6. Move it to the correct location:
 
 ```bash
-mv recipes.csv scripts/recipes.csv
+mv recipes_data.csv data/recipes_data.csv
 ```
 
 **Step 5 — Set up Supabase**
@@ -171,7 +171,6 @@ mv recipes.csv scripts/recipes.csv
 1. scripts/schema.sql           — creates the recipes table
 2. scripts/nutrition_schema.sql — creates the nutrition table
 3. scripts/forum_schema.sql     — creates the forum and profiles tables
-4. scripts/seed_forum.sql       — adds support for seeded forum posts
 ```
 
 If any file errors with "function already exists", run the DROP command shown in the error message first, then re-run the file.
@@ -199,7 +198,7 @@ Your Anthropic API key is available at https://console.anthropic.com.
 With the virtual environment active, run the recipe importer first:
 
 ```bash
-python scripts/import.py --csv scripts/recipes.csv
+python scripts/import.py --csv data/recipes_data.csv
 ```
 
 This takes several minutes — it processes the 2M+ recipe dataset in batches of 100 rows. Then run the nutrition importer using the files already in the `data/` folder:
@@ -255,7 +254,7 @@ source setup.sh
 
 **Step 3 — Download the recipe dataset**
 
-Follow Step 4 from Option A to download the Kaggle recipe CSV and place it at `scripts/recipes.csv`. The USDA nutrition files are already in the `data/` folder — no download needed.
+Follow Step 4 from Option A to download the Kaggle recipe CSV and place it at `data/recipes_data.csv`. The USDA nutrition files are already in the `data/` folder — no download needed.
 
 **Step 4 — Set up Supabase, create your .env, and import the data**
 
